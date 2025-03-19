@@ -10,5 +10,6 @@ Lora safetensors can be download from https://hf-mirror.com/taopanda/test-lora-Q
 <OpenVINO_GenAI_DIR>\setupvars.bat
 cd genai_lora
 mkdir build
+cmake -S . -B build && cmake --build build --config Release
 .\build\Release\qwen-lora.exe  "C:\\Users\\yourname\\Qwen2.5-1.5B" "C:\\Users\\yourname\\test-lora-Qwen2.5-1.5B\\adapter_model.safetensors" "infer_with_lora_memory"
 ```
