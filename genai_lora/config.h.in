@@ -1,0 +1,2 @@
+#pragma once
+#define CURRENT_SOURCE_DIR "@ESCAPED_SOURCE_DIR@"
