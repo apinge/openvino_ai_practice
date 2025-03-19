@@ -25,7 +25,6 @@ if(MSVC AND MSVC_VERSION GREATER_EQUAL 1930)
     add_compile_definitions(_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 endif()
 
-# find_package(OpenVINO REQUIRED COMPONENTS Runtime) # should use OpenVINOGenAI
 find_package(OpenVINOGenAI REQUIRED
     PATHS
         ${INTEL_OPENVINO_DIR} # get the environment variable
