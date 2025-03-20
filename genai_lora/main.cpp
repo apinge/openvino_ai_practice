@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) try {
     TestMode test_mode = parse_args(std::string(argv[3]));
     std::cout << "test mode:" << (int)test_mode << std::endl;
 
-    std::string device = "GPU";  // GPU can be used as well
+    std::string device = "GPU";  // CPU can be used as well
 
     
 
@@ -118,7 +118,7 @@ int main(int argc, char* argv[]) try {
     ov::genai::GenerationConfig config;
     if (test_mode == TestMode::no_lora_memory || test_mode == TestMode::empty_lora_memory ||
         test_mode == TestMode::infer_with_lora_memory) {
-        config.max_new_tokens = 1;  // stramer may inpact the performance test, only infer first token for the memory test
+        config.max_new_tokens = 1;  // streamer may inpact the performance test, only infer first token for the memory test
     } else {
         config.max_new_tokens = 200; // perfromance test
     }
