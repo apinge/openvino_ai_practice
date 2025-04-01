@@ -88,9 +88,7 @@ int main(int argc, char* argv[]) try {
 
     auto start_time = std::chrono::steady_clock::now();
     Adapter adapter;
-    if (test_mode == TestMode::no_lora_memory || test_mode == TestMode::no_lora_performance) {
-        adapter = Adapter();
-    } else {
+    if (!(test_mode == TestMode::no_lora_memory) && !(test_mode == TestMode::no_lora_performance)) {
         adapter = Adapter(adapter_path);
     }
  
