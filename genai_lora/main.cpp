@@ -87,7 +87,13 @@ int main(int argc, char* argv[]) try {
     std::cout << ov::get_openvino_version() << std::endl;
 
     auto start_time = std::chrono::steady_clock::now();
-    Adapter adapter(adapter_path);
+    Adapter adapter;
+    if (test_mode == TestMode::no_lora_memory || test_mode == TestMode::no_lora_performance) {
+        adapter = Adapter();
+    } else {
+        adapter = Adapter(adapter_path);
+    }
+ 
     auto stop_time = std::chrono::steady_clock::now();
     // DebugMemoryInfo("Add adapter A ");
     size_t load_time = PerfMetrics::get_microsec(stop_time - start_time);
