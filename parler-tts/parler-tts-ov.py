@@ -7,8 +7,8 @@ from pathlib import Path
 import torch.nn as nn
 import torch
 from parler_tts import ParlerTTSForConditionalGeneration
-from transformers import AutoTokenizer
 import soundfile as sf
+import openvino_tokenizers
 
 EncoderOutput = namedtuple("EncoderOutput", "last_hidden_state")
 DecoderOutput = namedtuple("DecoderOutput", ("last_hidden_state", "past_key_values", "hidden_states", "attentions", "cross_attentions"))
@@ -71,23 +71,25 @@ class DecoderWrapper(torch.nn.Module):
 
 repo_id = "parler-tts/parler_tts_mini_v0.1"
 model = ParlerTTSForConditionalGeneration.from_pretrained(repo_id).to("cpu")
-tokenizer = AutoTokenizer.from_pretrained(repo_id)
 
 TEXT_ENCODER_OV_PATH = Path("models/text_encoder_ir.xml")
 DECODER_STAGE_1_OV_PATH = Path("models/decoder_stage_1_ir.xml")
 DECODER_STAGE_2_OV_PATH = Path("models/decoder_stage_2_ir.xml")
+TOKENIZER_OV_PATH = Path("models/openvino_tokenizer.xml")
+
 model.text_encoder = TextEncoderModelWrapper(TEXT_ENCODER_OV_PATH, model.text_encoder.config)
 model.decoder.model.decoder = DecoderWrapper(DECODER_STAGE_1_OV_PATH, DECODER_STAGE_2_OV_PATH, model.decoder.model.decoder.config)
 model._supports_cache_class = False
 model._supports_static_cache = False
+ov_tokenizer = core.compile_model(TOKENIZER_OV_PATH, "CPU")
 
 prompt = "Hey there, you troublemaker! What kind of mischief are you up to today?"
 description = "A female speaker with a slightly low-pitched voice delivers her words quite expressively, in a very confined sounding environment with clear audio quality. She speaks very fast."
 
-input_ids = tokenizer(description, return_tensors="pt").input_ids.to("cpu")
-prompt_input_ids = tokenizer(prompt, return_tensors="pt").input_ids.to("cpu")
+input_ids = ov_tokenizer([description])['input_ids']
+prompt_input_ids = ov_tokenizer([prompt])['input_ids']
 
-generation = model.generate(input_ids=input_ids, prompt_input_ids=prompt_input_ids)
+generation = model.generate(input_ids=torch.tensor(input_ids), prompt_input_ids=torch.tensor(prompt_input_ids))
 audio_arr = generation.cpu().numpy().squeeze()
 sf.write("parler_tts_out_ov.wav", audio_arr, model.config.sampling_rate)
 

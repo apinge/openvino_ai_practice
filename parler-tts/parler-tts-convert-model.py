@@ -118,3 +118,13 @@ example_input = {
 
 decoder_2_ov_model = convert(DecoderStage2Wrapper(model.decoder.model.decoder), DECODER_STAGE_2_OV_PATH, example_input)
 
+"""
+Convert ov tokneizer
+"""
+from openvino_tokenizers import convert_tokenizer
+from openvino import save_model
+
+TOKENIZER_OV_PATH = Path("models/openvino_tokenizer.xml")
+ov_tokenizer = convert_tokenizer(tokenizer)
+save_model(ov_tokenizer, TOKENIZER_OV_PATH, compress_to_fp16=True)
+
