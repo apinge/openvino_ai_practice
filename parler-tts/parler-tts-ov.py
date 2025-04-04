@@ -9,6 +9,7 @@ import torch
 from parler_tts import ParlerTTSForConditionalGeneration
 import soundfile as sf
 import openvino_tokenizers
+import time
 
 EncoderOutput = namedtuple("EncoderOutput", "last_hidden_state")
 DecoderOutput = namedtuple("DecoderOutput", ("last_hidden_state", "past_key_values", "hidden_states", "attentions", "cross_attentions"))
@@ -19,9 +20,9 @@ device = "CPU"
 
 class TextEncoderModelWrapper(torch.nn.Module):
     def __init__(self, encoder_ir_path, config):
-        ov_config = {}
+        ov_config = {"CACHE_DIR": "model_cache"}
         if "GPU" is device:
-            ov_config = {"INFERENCE_PRECISION_HINT": "f32"}
+            ov_config["INFERENCE_PRECISION_HINT"] = "f32"
         self.encoder = core.compile_model(encoder_ir_path, device, ov_config)
         self.config = config
         self.dtype = self.config.torch_dtype
@@ -34,8 +35,8 @@ class TextEncoderModelWrapper(torch.nn.Module):
 class DecoderWrapper(torch.nn.Module):
     def __init__(self, decoder_stage_1_ir_path, decoder_stage_2_ir_path, config):
         super().__init__()
-        self.decoder_stage_1 = core.compile_model(decoder_stage_1_ir_path, "CPU")
-        self.decoder_stage_2 = core.compile_model(decoder_stage_2_ir_path, "CPU")
+        self.decoder_stage_1 = core.compile_model(decoder_stage_1_ir_path, device, config = {"CACHE_DIR": "model_cache"})
+        self.decoder_stage_2 = core.compile_model(decoder_stage_2_ir_path, device, config = {"CACHE_DIR": "model_cache"})
         self.config = config
         self.embed_tokens = None
         embed_dim = config.vocab_size + 1  # + 1 for pad token id
@@ -86,11 +87,15 @@ ov_tokenizer = core.compile_model(TOKENIZER_OV_PATH, "CPU")
 prompt = "Hey there, you troublemaker! What kind of mischief are you up to today?"
 description = "A female speaker with a slightly low-pitched voice delivers her words quite expressively, in a very confined sounding environment with clear audio quality. She speaks very fast."
 
+start_time = time.time()
 input_ids = ov_tokenizer([description])['input_ids']
 prompt_input_ids = ov_tokenizer([prompt])['input_ids']
 
 generation = model.generate(input_ids=torch.tensor(input_ids), prompt_input_ids=torch.tensor(prompt_input_ids))
+end_time = time.time()
 audio_arr = generation.cpu().numpy().squeeze()
 sf.write("parler_tts_out_ov.wav", audio_arr, model.config.sampling_rate)
 
+speech_len =  float(audio_arr.shape[0]) / model.config.sampling_rate
+print('yield speech len {} second, rtf {}'.format(speech_len, (end_time - start_time) / speech_len))
 print("OV Done!")
