@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35913.81 d17.13
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ov_genai_interop_net", "ov_genai_interop_net\ov_genai_interop_net.csproj", "{CE677CD6-2486-489D-8F0C-40ADF3B0973C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CE677CD6-2486-489D-8F0C-40ADF3B0973C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE677CD6-2486-489D-8F0C-40ADF3B0973C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE677CD6-2486-489D-8F0C-40ADF3B0973C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CE677CD6-2486-489D-8F0C-40ADF3B0973C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D8DE1BC2-20E0-4F74-A725-39F688338E43}
+	EndGlobalSection
+EndGlobal
