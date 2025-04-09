@@ -34,11 +34,7 @@ public enum ov_genai_streamming_status_e
                                            // cache includes history but last step
 }
 
-//public struct streamer_callback
-//{
-//    public IntPtr callback_func;  // Pointer to the callback function
-//    public IntPtr args;  // Callback arguments
-//}
+
 
 public static class NativeMethods
 {
@@ -139,7 +135,7 @@ public class DecodedResults : IDisposable
 {
     private IntPtr _nativePtr;
 
-    // Constructor 1: Manually create
+
     public DecodedResults()
     {
         var status = NativeMethods.ov_genai_decoded_results_create(out _nativePtr);
@@ -149,7 +145,7 @@ public class DecodedResults : IDisposable
         }
     }
 
-    // ✅ Constructor 2: Wrap from an existing pointer (used for llm_pipeline_generate)
+    // Wrap from an existing pointer (used for llm_pipeline_generate)
     internal DecodedResults(IntPtr nativePtr)
     {
         _nativePtr = nativePtr;
@@ -202,7 +198,7 @@ public class StreamerCallback : IDisposable
     {
         OnStream = onStream;
         Delegate = new MyCallbackDelegate(CallbackWrapper);
-        _selfHandle = GCHandle.Alloc(this);  // 把 this 作为 args
+        _selfHandle = GCHandle.Alloc(this); 
     }
 
     public IntPtr ToNativePtr()
@@ -340,39 +336,44 @@ class Program
 {
     static void Main(string[] args)
     {
-        string modelDir = "E:\\repos\\tiny-llama-1.1b-chat_OV_FP16-INT8_ASYM";
-
-        void StreamCallback(string partial)
+        if (args.Length < 1)
         {
-            Console.Write($"{partial} ");
+            Console.WriteLine("Usage: your_app.exe <model_dir> ");
+            return;
         }
-
-        var streamerCallback = new StreamerCallback(StreamCallback);
-
+        string modelDir = args[0];
         try
         {
             using var pipeline = new LlmPipeline(modelDir, "CPU");
             Console.WriteLine("Pipeline created!");
 
             var generationConfig = new GenerationConfig();
-            generationConfig.SetMaxNewTokens(100);
+            generationConfig.SetMaxNewTokens(100); 
+            pipeline.StartChat();  
 
-            pipeline.StartChat();
-            // Example of get result directly 
-            //string result1 = pipeline.Generate("Hello, how are you?", generationConfig, null);
-            //Console.WriteLine($"Decoded result: {result1}");
-            string result = pipeline.Generate("Hello, how are you?", generationConfig, new StreamerCallback((s) =>
+            Console.WriteLine("question:");
+            while (true)
             {
-                Console.Write($"{s}");
-            }));
-            //Console.WriteLine($"Decoded result: {result}");
+                string? input = Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(input)) break; 
 
-            pipeline.FinishChat();
+                using var streamerCallback = new StreamerCallback((string chunk) =>
+                {
+                    Console.Write(chunk); 
+                });
+
+                string result = pipeline.Generate(input, generationConfig, streamerCallback);
+
+                Console.WriteLine("\n----------\nquestion:");
+            }
+
+            pipeline.FinishChat();  
         }
         catch (Exception ex)
         {
             Console.WriteLine($"An error occurred: {ex.Message}");
         }
     }
+
 
 }
