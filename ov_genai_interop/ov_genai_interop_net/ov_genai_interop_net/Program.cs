@@ -25,11 +25,20 @@ public enum ov_status_e
     UNKNOW_EXCEPTION = -17
 }
 
-public struct streamer_callback
+public enum ov_genai_streamming_status_e
 {
-    public IntPtr callback_func;  // Pointer to the callback function
-    public IntPtr args;  // Callback arguments
+    OV_GENAI_STREAMMING_STATUS_RUNNING = 0,  // Continue to run inference
+    OV_GENAI_STREAMMING_STATUS_STOP =
+        1,  // Stop generation, keep history as is, KV cache includes last request and generated tokens
+    OV_GENAI_STREAMMING_STATUS_CANCEL = 2  // Stop generate, drop last prompt and all generated tokens from history, KV
+                                           // cache includes history but last step
 }
+
+//public struct streamer_callback
+//{
+//    public IntPtr callback_func;  // Pointer to the callback function
+//    public IntPtr args;  // Callback arguments
+//}
 
 public static class NativeMethods
 {
@@ -75,15 +84,15 @@ public static class NativeMethods
     // Allow streamer to be null in C#
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void MyCallbackDelegate(IntPtr something);
+    public delegate void MyCallbackDelegate(IntPtr str, IntPtr args);
 
     [DllImport("openvino_genai_c.dll", CallingConvention = CallingConvention.Cdecl)]
     public static extern ov_status_e ov_genai_llm_pipeline_generate(
-        IntPtr pipe,
-        string inputs,
-        IntPtr config,
-        [MarshalAs(UnmanagedType.FunctionPtr)] MyCallbackDelegate? callback,
-        out IntPtr decodedResultsPtr);
+    IntPtr pipe,
+    string inputs,
+    IntPtr config,
+    IntPtr streamer,  // This argument can be null
+    out IntPtr decodedResultsPtr);
 }
 
 public class GenerationConfig : IDisposable
@@ -174,26 +183,66 @@ public class DecodedResults : IDisposable
         GC.SuppressFinalize(this);
     }
 }
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate ov_genai_streamming_status_e MyCallbackDelegate(IntPtr str, IntPtr args);
 
-public class StreamerCallback
+[StructLayout(LayoutKind.Sequential)]
+public struct streamer_callback
 {
-    // Define callback delegate
-    public delegate void CallbackDelegate(string str, IntPtr args);
+    public MyCallbackDelegate callback_func;
+    public IntPtr args;
+}
+public class StreamerCallback : IDisposable
+{
+    public Action<string> OnStream;
+    public MyCallbackDelegate Delegate;
+    private GCHandle _selfHandle;
 
-    public CallbackDelegate CallbackMethod;
-
-    public StreamerCallback(CallbackDelegate callback)
+    public StreamerCallback(Action<string> onStream)
     {
-        CallbackMethod = callback;
+        OnStream = onStream;
+        Delegate = new MyCallbackDelegate(CallbackWrapper);
+        _selfHandle = GCHandle.Alloc(this);  // 把 this 作为 args
     }
 
-    // A static method must be provided for the C interface to convert to a C callback function pointer
-    public static void CallbackMethodWrapper(string str, IntPtr args)
+    public IntPtr ToNativePtr()
     {
-        var callbackDelegate = Marshal.GetDelegateForFunctionPointer<CallbackDelegate>(args);
-        callbackDelegate?.Invoke(str, args);
+        var native = new streamer_callback
+        {
+            callback_func = Delegate,
+            args = GCHandle.ToIntPtr(_selfHandle)
+        };
+
+        IntPtr ptr = Marshal.AllocHGlobal(Marshal.SizeOf<streamer_callback>());
+        Marshal.StructureToPtr(native, ptr, false);
+        return ptr;
+    }
+
+    public void Dispose()
+    {
+        if (_selfHandle.IsAllocated)
+            _selfHandle.Free();
+    }
+
+    private ov_genai_streamming_status_e CallbackWrapper(IntPtr str, IntPtr args)
+    {
+        string content = Marshal.PtrToStringAnsi(str) ?? string.Empty;
+
+        if (args != IntPtr.Zero)
+        {
+            var handle = GCHandle.FromIntPtr(args);
+            if (handle.Target is StreamerCallback self)
+            {
+                self.OnStream?.Invoke(content);
+            }
+        }
+
+        return ov_genai_streamming_status_e.OV_GENAI_STREAMMING_STATUS_RUNNING;
     }
 }
+
+
+
 
 public class LlmPipeline : IDisposable
 {
@@ -223,30 +272,31 @@ public class LlmPipeline : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public string Generate(string input, GenerationConfig config, StreamerCallback callback = null)
+    public string Generate(string input, GenerationConfig config, StreamerCallback? callback = null)
     {
-        streamer_callback streamer = new streamer_callback();
+        IntPtr configPtr = config.GetNativePointer();
+        IntPtr decodedPtr;
+
+        IntPtr streamerPtr = IntPtr.Zero;
+
         if (callback != null)
         {
-            var funcPtr = callback.CallbackMethod?.Method?.MethodHandle.GetFunctionPointer();
-            streamer.callback_func = funcPtr.HasValue ? (IntPtr)funcPtr.Value : IntPtr.Zero;
-            streamer.args = IntPtr.Zero;
+            streamerPtr = callback.ToNativePtr(); 
         }
-        //Console.WriteLine($"Streamer callback function pointer: {streamer.callback_func}");
-        IntPtr configPtr = config.GetNativePointer();
 
-       // Console.WriteLine($"Config pointer: {configPtr}"); // Print config pointer
-        // Callback function can be null
-        MyCallbackDelegate? cb =  null;
-        IntPtr decodedPtr;
         var status = NativeMethods.ov_genai_llm_pipeline_generate(
             _nativePtr,
             input,
             configPtr,
-            cb,
-           out decodedPtr
+            streamerPtr,  // This cargument can be null
+            out decodedPtr
         );
-        
+
+        if (streamerPtr != IntPtr.Zero)
+            Marshal.FreeHGlobal(streamerPtr); 
+
+        callback?.Dispose();  // 👈 释放 GCHandle
+
         if (status != ov_status_e.OK)
         {
             Console.WriteLine($"Error: {status} during generation.");
@@ -254,9 +304,11 @@ public class LlmPipeline : IDisposable
         }
 
         using var decoded = new DecodedResults(decodedPtr);
-        string result = decoded.GetDecodedString();
-        return result;
+        return decoded.GetDecodedString();
     }
+
+
+
 
 
     public void StartChat()
@@ -289,19 +341,31 @@ class Program
     static void Main(string[] args)
     {
         string modelDir = "E:\\repos\\tiny-llama-1.1b-chat_OV_FP16-INT8_ASYM";
+
+        void StreamCallback(string partial)
+        {
+            Console.Write($"{partial} ");
+        }
+
+        var streamerCallback = new StreamerCallback(StreamCallback);
+
         try
         {
             using var pipeline = new LlmPipeline(modelDir, "CPU");
             Console.WriteLine("Pipeline created!");
 
-            var decodedResults = new DecodedResults();
             var generationConfig = new GenerationConfig();
             generationConfig.SetMaxNewTokens(100);
 
             pipeline.StartChat();
-            string result = pipeline.Generate("Hello, how are you?", generationConfig, null);
-
-            Console.WriteLine($"Decoded result: {result}");
+            // Example of get result directly 
+            //string result1 = pipeline.Generate("Hello, how are you?", generationConfig, null);
+            //Console.WriteLine($"Decoded result: {result1}");
+            string result = pipeline.Generate("Hello, how are you?", generationConfig, new StreamerCallback((s) =>
+            {
+                Console.Write($"{s}");
+            }));
+            //Console.WriteLine($"Decoded result: {result}");
 
             pipeline.FinishChat();
         }
@@ -310,4 +374,5 @@ class Program
             Console.WriteLine($"An error occurred: {ex.Message}");
         }
     }
+
 }
