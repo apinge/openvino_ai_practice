@@ -291,7 +291,7 @@ public class LlmPipeline : IDisposable
         if (streamerPtr != IntPtr.Zero)
             Marshal.FreeHGlobal(streamerPtr); 
 
-        callback?.Dispose();  // 👈 释放 GCHandle
+        callback?.Dispose(); 
 
         if (status != ov_status_e.OK)
         {
@@ -348,7 +348,7 @@ class Program
             Console.WriteLine("Pipeline created!");
 
             var generationConfig = new GenerationConfig();
-            generationConfig.SetMaxNewTokens(100); 
+            generationConfig.SetMaxNewTokens(1024); 
             pipeline.StartChat();  
 
             Console.WriteLine("question:");
