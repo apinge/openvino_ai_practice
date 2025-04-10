@@ -279,7 +279,7 @@ public class LlmPipeline : IDisposable
             _nativePtr,
             input,
             configPtr,
-            streamerPtr,  // This cargument can be null
+            streamerPtr,  // This argument can be null
             out decodedPtr
         );
 
@@ -370,7 +370,7 @@ class ChatSample
         string modelDir = args[0];
         try
         {
-            using var pipeline = new LlmPipeline(modelDir, "CPU");
+            var pipeline = new LlmPipeline(modelDir, "CPU");
             Console.WriteLine("Pipeline created!");
 
             var generationConfig = new GenerationConfig();
@@ -383,7 +383,7 @@ class ChatSample
                 string? input = Console.ReadLine();
                 if (string.IsNullOrWhiteSpace(input)) break; 
 
-                using var streamerCallback = new StreamerCallback((string chunk) =>
+                var streamerCallback = new StreamerCallback((string chunk) =>
                 {
                     Console.Write(chunk); 
                 });
