@@ -77,11 +77,6 @@ public static class NativeMethods
     [DllImport("openvino_genai_c.dll", CallingConvention = CallingConvention.Cdecl)]
     public static extern ov_status_e ov_genai_decoded_results_get_string(IntPtr results, IntPtr output, ref ulong output_size);
 
-    // Allow streamer to be null in C#
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void MyCallbackDelegate(IntPtr str, IntPtr args);
-
     [DllImport("openvino_genai_c.dll", CallingConvention = CallingConvention.Cdecl)]
     public static extern ov_status_e ov_genai_llm_pipeline_generate(
     IntPtr pipe,
@@ -319,7 +314,7 @@ public class LlmPipeline : IDisposable
             _nativePtr,
             input,
             configPtr,
-            streamerPtr,  // This cargument can be null
+            streamerPtr, 
             out decodedPtr
         );
 
@@ -380,7 +375,7 @@ class ChatSample
 
             var generationConfig = new GenerationConfig();
             generationConfig.SetMaxNewTokens(1024); 
-            pipeline.StartChat();  
+            pipeline.StartChat(); // Start chat with keeping history in kv cache.
 
             Console.WriteLine("question:");
             while (true)
@@ -399,7 +394,7 @@ class ChatSample
                 Console.WriteLine("\n----------\nquestion:");
             }
 
-            pipeline.FinishChat();  
+            pipeline.FinishChat(); // Finish chat and clear history in kv cache.
         }
         catch (Exception ex)
         {
