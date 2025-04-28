@@ -1,0 +1,31 @@
+
+torch>=2.1 --extra-index-url https://download.pytorch.org/whl/cpu
+torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
+einops
+transformers>=4.46.1
+loguru
+inflect
+pesq
+torchcrepe
+natsort
+polars
+uroman
+mecab-python3
+openai-whisper>=20240930
+unidic-lite
+
+
+gradio>=4.19
+openvino>=2024.4.0
+tqdm
+pyyaml
+librosa
+soundfile
+nncf
+
+
+git+https://github.com/huggingface/optimum-intel.git#egg=optimum-intel --extra-index-url https://download.pytorch.org/whl/cpu
+
+git+https://github.com/edwko/OuteTTS.git@0.3.2
+
+#torch==2.2.0+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
