@@ -1,7 +1,7 @@
 from ov_outetts_helper import InterfaceOV, OVHFModel
 import numpy as np
 import time
-model_dir = "OuteTTS-0.1-350M-ov"
+model_dir = "OuteTTS-0.1-350M-ov_quantized"
 interface = InterfaceOV(model_dir, "GPU")
 start_time = time.time()
 #zero-shot infer
@@ -27,10 +27,12 @@ audio_data_int16 = np.int16(audio_data_float32 * (32767 / np.max(np.abs(audio_da
 
 
 
-wav_filename = "output_tts.wav"
+wav_filename = "output_tts_q.wav"
 import scipy.io.wavfile
 
 scipy.io.wavfile.write(wav_filename, sample_rate, audio_data_int16)
+
+
 """
 Text-to-Speech generation with Voice Cloning
 """
@@ -61,55 +63,39 @@ print('yield speech len {} second, rtf {}'.format(speech_len, (end_time - start_
 # save the output to a file
 audio_data_float32 = cloned_output.audio[0].numpy() # Your raw data, assumed to be float32
 sample_rate = cloned_output.sr
-wav_filename = "output_tts_clone.wav"
+wav_filename = "output_tts_clone_q.wav"
 audio_data_int16 = np.int16(audio_data_float32 * (32767 / np.max(np.abs(audio_data_float32))))
 scipy.io.wavfile.write(wav_filename , sample_rate, audio_data_int16)
 
 """
-Quantization
+Comparing model Performance
 """
-from datasets import load_dataset
-libritts = load_dataset("parler-tts/libritts_r_filtered", "clean", split="test.clean", streaming=True)
+import time
+import tqdm
 
-import nncf
-from functools import partial
-import numpy as np
+def calculate_inference_time(interface, dataset, limit):
+    inference_time = []
+    for i, item in tqdm.tqdm(enumerate(dataset), total=limit):
+        if i > limit: break
+        start = time.perf_counter()
+        _ = interface.generate(
+            text=item["text_normalized"],
+            max_length=256,
+            additional_gen_config={
+                "pad_token_id": interface.prompt_processor.tokenizer.eos_token_id
+            }
+        )
+        end = time.perf_counter()
+        delta = end - start
+        inference_time.append(delta)
+    return np.median(inference_time)
 
-def transform_fn(item, interface):
-    text_normalized = item["text_normalized"]
-    prompt = interface.prompt_processor.get_completion_prompt(text_normalized, interface.language, None)
-    encoded = interface.prompt_processor.tokenizer(prompt, return_tensors="np")
+interface = InterfaceOV(model_dir, "GPU")
+limit = 25
 
-    input_ids = encoded["input_ids"]
-    attention_mask = encoded["attention_mask"]
-    inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
+fp_inference_time = calculate_inference_time(interface, libritts, limit)
+print(f"Original model generate time: {fp_inference_time}")
 
-    position_ids = np.cumsum(attention_mask, axis=1) - 1
-    position_ids[attention_mask == 0] = 1
-    inputs["position_ids"] = position_ids
-
-    batch_size = input_ids.shape[0]
-    inputs["beam_idx"] = np.arange(batch_size, dtype=int)
-
-    return inputs
-
-hf_model = OVHFModel(model_dir,"CPU").model
-dataset = nncf.Dataset(libritts, partial(transform_fn, interface=interface))
-
-quantized_model = nncf.quantize(
-    hf_model.model,
-    dataset,
-    preset=nncf.QuantizationPreset.MIXED,
-    model_type=nncf.ModelType.TRANSFORMER,
-    ignored_scope=nncf.IgnoredScope(
-        patterns=[
-            # We need to use ignored scope for this pattern to generate the most efficient model
-            "__module.model.layers.*.self_attn/aten::scaled_dot_product_attention/ScaledDotProductAttention"
-        ]
-    )
-)
-
-hf_model.model = quantized_model
-model_dir_quantized = Path(f"{model_dir}_quantized")
-hf_model.save_pretrained(model_dir_quantized)
-interface.prompt_processor.tokenizer.save_pretrained(model_dir_quantized)
+interface_quantized = InterfaceOV(model_dir_quantized, "CPU")
+int_inference_time = calculate_inference_time(interface_quantized, libritts, limit)
+print(f"Quantized model generate time: {int_inference_time}")
