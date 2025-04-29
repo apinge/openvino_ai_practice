@@ -21,11 +21,11 @@ Available default speakers v2: ['de_male_1', 'de_male_2', 'en_female_1', 'en_mal
 'fr_female_1', 'fr_female_2', 'fr_male_1', 'fr_male_2', 'jp_female_1', 'jp_female_2', 'jp_male_1', 'ko_female_1', 
 'zh_female_1', 'zh_female_2', 'zh_male_1', 'zh_male_2']
 """
-speaker = interface.load_default_speaker(name="en_male_2")
+speaker = interface.load_default_speaker(name="zh_male_2")
 
 # Generate speech
 gen_cfg = outetts.GenerationConfig(
-    text="What is your name.",
+    text="开源社区的代码架构比较复杂.",
     temperature=0.4,
     repetition_penalty=1.1,
     max_length=4096,
